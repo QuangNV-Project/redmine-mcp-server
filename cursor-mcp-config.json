@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "redmine-stdio": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/redmine-mcp/dist/index.js"],
+      "env": {
+        "REDMINE_URL": "https://your-redmine.com",
+        "REDMINE_USERNAME": "your_username",
+        "REDMINE_PASSWORD": "your_password",
+        "GIT_REPO_PATH": "/path/to/your/local/repo",
+        "BRANCH_FORMAT": "ticket-id-title"
+      }
+    },
+    "redmine-sse": {
+      "url": "http://localhost:3000/sse"
+    }
+  }
+}
