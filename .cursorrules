@@ -5,6 +5,9 @@ This is an MCP (Model Context Protocol) server that bridges Cursor IDE with Redm
 It allows AI to read Redmine tickets/requirements and manage git branches automatically.
 Authentication uses **username/password** (HTTP Basic Auth), not API key.
 
+Supports **multi-project, multi-repo** workflows via MongoDB: each project maps to
+separate FE and BE repos with independent tech stacks and base branches.
+
 ## Tech Stack
 - **Runtime:** Node.js >= 18 (portable Node v24 at `D:\Software\node-v24.11.0-win-x64\node-v24.11.0-win-x64`)
 - **Language:** TypeScript (strict mode, ES2022, Node16 module)
@@ -12,6 +15,8 @@ Authentication uses **username/password** (HTTP Basic Auth), not API key.
 - **MCP SDK:** `@modelcontextprotocol/sdk` — supports stdio and SSE transport
 - **HTTP Server:** Express (for SSE transport mode)
 - **HTTP Client:** Axios with Basic Auth
+- **Database:** MongoDB (optional, for multi-repo project management)
+- **Security:** Helmet, CORS, rate limiting, Bearer token auth
 - **Linting:** ESLint (flat config) + Prettier
 - **Git Hooks:** Husky + lint-staged
 
@@ -20,6 +25,9 @@ Authentication uses **username/password** (HTTP Basic Auth), not API key.
 ├── index.ts              # MCP server entry — tool definitions & handlers
 ├── redmine-client.ts     # Redmine REST API client (Basic Auth)
 ├── git-helper.ts         # Git operations (create branch, list branches, etc.)
+├── mongo-client.ts       # MongoDB connection + project CRUD
+├── middleware.ts          # Express security middlewares (auth, rate limit, CORS, Helmet)
+├── types.ts              # Shared interfaces (ProjectConfig, validation helpers)
 ├── dist/                 # Compiled JS output (do not edit)
 ├── .env                  # Local credentials (never commit)
 └── .env.example          # Template for .env
@@ -27,16 +35,47 @@ Authentication uses **username/password** (HTTP Basic Auth), not API key.
 
 ## Key Architecture Decisions
 - Dual transport: **stdio** (default, Cursor local) or **SSE** (HTTP server with custom port for Docker/remote).
-- `TRANSPORT=stdio` → Cursor spawns process, communicates via stdin/stdout.
-- `TRANSPORT=sse` + `PORT=3000` → Express HTTP server, Cursor connects via `http://localhost:3000/sse`.
+- `TRANSPORT=stdio` -> Cursor spawns process, communicates via stdin/stdout.
+- `TRANSPORT=sse` + `PORT=3000` -> Express HTTP server, Cursor connects via `http://localhost:3000/sse`.
 - `console.error()` for server logs (stdout is reserved for MCP protocol in stdio mode).
 - All Redmine API calls go through `RedmineClient` class.
 - All git operations go through `git-helper.ts` using `child_process.execSync`.
+- MongoDB stores project configs mapping Redmine projects to local FE/BE repos.
+- `create_branch_for_issue` auto-resolves repo path from MongoDB when `target` (fe/be) is specified.
+
+## Multi-Repo Workflow
+1. Register projects: `register_project` maps Redmine project -> local FE/BE repos in MongoDB
+2. Read ticket: `get_issue` fetches requirement from Redmine
+3. Create branch: `create_branch_for_issue` with `target: "fe"` or `"be"` auto-resolves repo
+4. Read context: `get_project_context` reads repo structure, README, package.json/pom.xml
+
+## MongoDB Schema (projects collection)
+```typescript
+interface ProjectConfig {
+  _id: string;              // slug, e.g. "fin-track"
+  name: string;             // "Fin Track"
+  redmine_project_id: string;
+  repos: {
+    fe?: { path: string; tech: string; base_branch: string; };
+    be?: { path: string; tech: string; base_branch: string; };
+  };
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+## Security (SSE mode)
+- **Bearer token**: Set `MCP_AUTH_TOKEN` env var. All requests (except /health) require `Authorization: Bearer <token>`.
+- **Rate limiting**: 100 requests per 15 minutes per IP.
+- **CORS**: Set `ALLOWED_ORIGINS` env var (comma-separated).
+- **Helmet**: Standard HTTP security headers.
+- **Input validation**: issue_id must be positive int, repo_path cannot contain `..`, limit 1-100.
 
 ## Coding Conventions
 - Use ES module imports with `.js` extension (required by Node16 module resolution).
 - Keep imports at the top of every file — no inline imports.
 - Use `interface` for data shapes, `type` for unions/intersections.
+- Use `import type` for type-only imports.
 - Error handling: catch errors in tool handlers and return `{ isError: true }` with a descriptive message.
 - Branch naming: `{prefix}/{issueId}-{slugified-title}` (e.g. `feature/1234-fix-login-bug`).
 
@@ -59,10 +98,14 @@ npm run format:check   # Check Prettier formatting
 | REDMINE_PASSWORD | Yes | Redmine login password |
 | TRANSPORT | No | `stdio` (default) or `sse` |
 | PORT | No | HTTP port when TRANSPORT=sse (default: 3000) |
-| GIT_REPO_PATH | No | Default git repo path |
+| MCP_AUTH_TOKEN | No | Bearer token for SSE auth (disabled if empty) |
+| ALLOWED_ORIGINS | No | CORS origins, comma-separated |
+| MONGODB_URI | No | MongoDB connection string (enables multi-repo) |
+| GIT_REPO_PATH | No | Fallback git repo path |
 | BRANCH_FORMAT | No | `ticket-id` or `ticket-id-title` |
 
 ## Important Notes
 - Never log to `console.log()` — it breaks MCP stdio protocol. Use `console.error()` only.
 - The `.env` file contains credentials — never commit it.
 - When adding new MCP tools, define them in `ListToolsRequestSchema` handler and implement in `CallToolRequestSchema` handler (both in `index.ts`).
+- MongoDB is optional. Without it, the server works like before with GIT_REPO_PATH fallback.

@@ -7,12 +7,15 @@
         "REDMINE_URL": "https://your-redmine.com",
         "REDMINE_USERNAME": "your_username",
         "REDMINE_PASSWORD": "your_password",
-        "GIT_REPO_PATH": "/path/to/your/local/repo",
+        "MONGODB_URI": "mongodb://localhost:27017/mcp-server",
         "BRANCH_FORMAT": "ticket-id-title"
       }
     },
     "redmine-sse": {
-      "url": "http://localhost:3000/sse"
+      "url": "http://localhost:6000/sse",
+      "headers": {
+        "Authorization": "Bearer your-secret-token-here"
+      }
     }
   }
 }
