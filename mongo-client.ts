@@ -9,7 +9,7 @@ export async function connectMongo(uri: string): Promise<void> {
   client = new MongoClient(uri);
   await client.connect();
   db = client.db();
-  console.error(`Connected to MongoDB: ${uri.replace(/\/\/.*@/, "//***@")}`);
+  console.error(`Connected to MongoDB`);
 }
 
 export async function disconnectMongo(): Promise<void> {

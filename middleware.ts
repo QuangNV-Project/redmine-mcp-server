@@ -22,10 +22,11 @@ export function createAuthMiddleware(token: string) {
 export function createRateLimiter() {
   return rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 100,
+    limit: 200,
     standardHeaders: "draft-7",
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later" },
+    skip: (req) => req.path === "/sse" || req.path === "/health",
   });
 }
 
