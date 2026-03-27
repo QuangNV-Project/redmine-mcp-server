@@ -13,10 +13,6 @@ Write-Host "Starting Redmine MCP Server (dev mode with auto-reload)..."
 $ProjectPath = "D:\quangnv\Code\SUB_SERVICE\mcp-server"
 Set-Location $ProjectPath
 
-# Cài dependencies
-Write-Host "Installing dependencies..."
-& "$NodePortable\npm.cmd" install
-
 # Chạy dev server React
 Write-Host "Starting React dev server..."
 & "$NodePortable\npm.cmd" run lint
