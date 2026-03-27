@@ -35,6 +35,24 @@ export async function getProjectByRedmineId(
   return getCollection().findOne({ redmine_project_id: redmineProjectId });
 }
 
+export async function findProjectByRedmine(
+  projectName: string,
+  projectId: number
+): Promise<ProjectConfig | null> {
+  return getCollection().findOne({
+    $or: [
+      { redmine_project_id: projectName },
+      { redmine_project_id: String(projectId) },
+      { name: projectName },
+      {
+        name: {
+          $regex: new RegExp(`^${projectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+        },
+      },
+    ],
+  });
+}
+
 export async function listAllProjects(): Promise<ProjectConfig[]> {
   return getCollection().find().sort({ name: 1 }).toArray();
 }

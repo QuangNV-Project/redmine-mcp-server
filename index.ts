@@ -489,21 +489,31 @@ ${childrenSection}${journalsSection}`;
           };
 
         if (explicitPath) {
-          repoPath = path.resolve(explicitPath);
+          repoPath = explicitPath;
           baseBranch = (args?.base_branch as string) || "main";
         } else if (MONGODB_URI) {
-          const projectConfig = await mongo.getProjectByRedmineId(issue.project.name);
-          const projectConfigById =
-            projectConfig ?? (await mongo.getProjectByRedmineId(String(issue.project.id)));
+          let projectConfig = await mongo.findProjectByRedmine(
+            issue.project.name,
+            issue.project.id
+          );
 
-          if (projectConfigById && target) {
-            const repoConfig = projectConfigById.repos[target];
+          if (!projectConfig) {
+            try {
+              const redmineProject = await redmine.getProject(String(issue.project.id));
+              projectConfig = await mongo.getProjectByRedmineId(redmineProject.identifier);
+            } catch {
+              /* Redmine project lookup failed, continue to fallback */
+            }
+          }
+
+          if (projectConfig && target) {
+            const repoConfig = projectConfig.repos[target];
             if (!repoConfig) {
               return {
                 content: [
                   {
                     type: "text",
-                    text: `No ${target} repo configured for project "${projectConfigById.name}". Use register_project to add it.`,
+                    text: `No ${target} repo configured for project "${projectConfig.name}". Use register_project to add it.`,
                   },
                 ],
                 isError: true,
@@ -511,23 +521,23 @@ ${childrenSection}${journalsSection}`;
             }
             repoPath = repoConfig.path;
             baseBranch = (args?.base_branch as string) || repoConfig.base_branch;
-          } else if (projectConfigById && !target) {
-            const available = Object.keys(projectConfigById.repos).join(", ");
+          } else if (projectConfig && !target) {
+            const available = Object.keys(projectConfig.repos).join(", ");
             return {
               content: [
                 {
                   type: "text",
-                  text: `Project "${projectConfigById.name}" has repos: ${available}. Please specify target ("fe" or "be").`,
+                  text: `Project "${projectConfig.name}" has repos: ${available}. Please specify target ("fe" or "be").`,
                 },
               ],
               isError: true,
             };
           } else {
-            repoPath = resolveRepoPath();
+            repoPath = process.env.GIT_REPO_PATH || process.cwd();
             baseBranch = (args?.base_branch as string) || "main";
           }
         } else {
-          repoPath = resolveRepoPath();
+          repoPath = process.env.GIT_REPO_PATH || process.cwd();
           baseBranch = (args?.base_branch as string) || "main";
         }
 
