@@ -937,7 +937,14 @@ async function startSSE() {
 
 async function main() {
   if (MONGODB_URI) {
-    await connectMongo(MONGODB_URI);
+    try {
+      await connectMongo(MONGODB_URI);
+    } catch (err) {
+      console.error(
+        "WARNING: MongoDB connection failed. Multi-repo features disabled.",
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 
   switch (TRANSPORT) {
